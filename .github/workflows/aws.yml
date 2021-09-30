@@ -37,10 +37,6 @@ jobs:
         ECR_REPOSITORY: yeemathong
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        sudo apt-get update
-        sudo apt-get upgrade
-        sudo apt-get install -y gettext # in order to use envsubst
-
         # Build a docker container and
         # push it to ECR so that it can
         # be deployed to ECS.
@@ -55,6 +51,16 @@ jobs:
       with:
         args: apply -f deploy/service/yeemathong-api-service.yml
 
+    - name: Replace Deployment configuration files
+      uses: danielr1996/envsubst-action@1.0.0
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        input: deploy/deployment/yeemathong-api-deployment.yml.template
+        output: deploy/deployment/yeemathong-api-deployment.yml
+
     - name: Enroll Deployment
       uses: kodermax/kubectl-aws-eks@master
       env:
@@ -62,17 +68,17 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: yeemathong
       with:
-        args: apply -f - < $(envsubst < deploy/deployment/yeemathong-api-deployment.yml)
+        args: apply -f deploy/deployment/yeemathong-api-deployment.yml
 
-    - name: Wait for Deployment
-      uses: kodermax/kubectl-aws-eks@master
-      env:
-        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: yeemathong
-        IMAGE_TAG: ${{ github.sha }}
-      with:
-        args: wait deployment.v1.apps/$ECR_REPOSITORY --for=condition=available --timeout=300s -n yeemathong
+    # - name: Wait for Deployment
+    #   uses: kodermax/kubectl-aws-eks@master
+    #   env:
+    #     KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+    #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+    #     ECR_REPOSITORY: yeemathong
+    #     SERVICE_NAME: yeemathong-api
+    #   with:
+    #     args: wait deployment.v1.apps/$SERVICE_NAME --for=condition=available --timeout=300s -n yeemathong
 
     - name: Deploy to Cluster
       uses: kodermax/kubectl-aws-eks@master
@@ -80,9 +86,9 @@ jobs:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: yeemathong
-        IMAGE_TAG: ${{ github.sha }}
+        SERVICE_NAME: yeemathong-api
       with:
-        args: set image deployment.v1.apps/$ECR_REPOSITORY $ECR_REPOSITORY=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n yeemathong
+        args: set image deployment.v1.apps/$SERVICE_NAME $ECR_REPOSITORY=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n yeemathong
 
     - name: Setup Ingress
       uses: kodermax/kubectl-aws-eks@master
