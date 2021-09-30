@@ -12,7 +12,7 @@ WORKDIR /app
 COPY Gemfile /app/
 COPY Gemfile.lock /app/
 
-RUN apk add --no-cache build-base gcc g++ postgresql-dev cargo linux-headers libffi-dev openssl-dev
+RUN apk add --no-cache build-base gcc g++ postgresql-dev cargo linux-headers libffi-dev openssl-dev git
 
 # Gemfile.lock requirement
 RUN gem install bundler -v 2.1.4
