@@ -1,4 +1,4 @@
-FROM ruby:2.7-alpine
+FROM ruby:2.7.0-alpine
 
 ARG DATABASE_URL
 ARG REDIS_URL
@@ -13,7 +13,9 @@ COPY Gemfile /app/
 COPY Gemfile.lock /app/
 
 RUN apk add --no-cache build-base gcc g++ postgresql-dev cargo linux-headers libffi-dev openssl-dev
-RUN gem install bundler
+
+# Gemfile.lock requirement
+RUN gem install bundler -v 2.1.4
 
 RUN bundle install
 
