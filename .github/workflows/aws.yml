@@ -1,0 +1,95 @@
+name: Build and Deploy to AWS EKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DATABASE_URL: '${{ secrets.DATABASE_URL }}'
+  REDIS_URL: '${{ secrets.REDIS_URL }}'
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-2
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade
+        sudo apt-get install -y gettext # in order to use envsubst
+
+        # Build a docker container and
+        # push it to ECR so that it can
+        # be deployed to ECS.
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --build-arg DATABASE_URL --build-arg REDIS_URL .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+    - name: Enroll Service
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+      with:
+        args: apply -f deploy/service/yeemathong-api-service.yml
+
+    - name: Enroll Deployment
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+      with:
+        args: apply -f - < $(envsubst < deploy/deployment/yeemathong-api-deployment.yml)
+
+    - name: Wait for Deployment
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        args: wait deployment.v1.apps/$ECR_REPOSITORY --for=condition=available --timeout=300s -n yeemathong
+
+    - name: Deploy to Cluster
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        args: set image deployment.v1.apps/$ECR_REPOSITORY $ECR_REPOSITORY=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n yeemathong
+
+    - name: Setup Ingress
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        args: apply -f deploy/yeemathong-ingress.yml
