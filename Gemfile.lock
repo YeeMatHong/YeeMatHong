@@ -481,6 +481,7 @@ DEPENDENCIES
   timecop
   traceroute
   turbolinks (~> 5)
+  tzinfo
   tzinfo-data
   view_component
   web-console (>= 3.3.0)
