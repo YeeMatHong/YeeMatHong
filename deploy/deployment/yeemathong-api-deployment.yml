@@ -1,0 +1,30 @@
+apiVersion: "apps/v1"
+kind: Deployment
+metadata:
+  name: yeemathong-api
+  namespace: yeemathong
+  labels:
+    service: yeemathong-api-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: yeemathong-api-service
+  template:
+    metadata:
+      labels:
+        service: yeemathong-api-service
+    spec:
+      containers:
+        - name: yeemathong-api
+          image: gcr.io/yeemathong/yeemathong:$COMMIT_SHA
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 125m
+              memory: 100Mi
+            limits:
+              cpu: 200m
+              memory: 200Mi
+          ports:
+            - containerPort: 8000
