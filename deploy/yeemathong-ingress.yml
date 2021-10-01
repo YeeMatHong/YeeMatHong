@@ -12,6 +12,7 @@ spec:
     - secretName: "yeemathong-dev-tls"
       hosts:
         - "yee-mat-hong.hongik.dev"
+        - "yee-mat-hong-queue.hongik.dev"
   rules:
   - host: "yee-mat-hong.hongik.dev"
     http:
@@ -21,5 +22,15 @@ spec:
           backend:
             service:
               name: yeemathong-api-service
+              port:
+                number: 8000
+  - host: "yee-mat-hong-queue.hongik.dev"
+    http:
+      paths:
+        - path: "/"
+          pathType: Prefix
+          backend:
+            service:
+              name: yeemathong-queue-service
               port:
                 number: 8000

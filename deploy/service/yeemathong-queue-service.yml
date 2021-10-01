@@ -1,0 +1,17 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yeemathong-queue-service
+  namespace: yeemathong
+  labels:
+    service: yeemathong-queue-service
+spec:
+  type: NodePort
+  selector:
+    service: yeemathong-queue-service
+  ports:
+    - name: yeemathong-queue-service
+      port: 8000
+      protocol: "TCP"
+      targetPort: 8000

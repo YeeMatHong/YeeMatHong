@@ -32,8 +32,8 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
+    - name: Build, tag, and push image to Amazon ECR (Server)
+      id: build-image-server
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: yeemathong
@@ -46,14 +46,35 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
-    - name: Enroll Service
+    - name: Build, tag, and push image to Amazon ECR (Queue)
+      id: build-image-queue
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong-queue
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and
+        # push it to ECR so that it can
+        # be deployed to ECS.
+        docker build -f Dockerfile.sidekiq -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --build-arg DATABASE_URL --build-arg REDIS_URL --build-arg SECRET_KEY_BASE --build-arg RAILS_MASTER_KEY .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+    - name: Enroll Service (Server)
       uses: kodermax/kubectl-aws-eks@master
       env:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
       with:
         args: apply -f deploy/service/yeemathong-api-service.yml
 
-    - name: Replace Deployment configuration files
+    - name: Enroll Service (Queue)
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+      with:
+        args: apply -f deploy/service/yeemathong-queue-service.yml
+
+    - name: Replace Deployment configuration files (Server)
       uses: danielr1996/envsubst-action@1.0.0
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -63,7 +84,17 @@ jobs:
         input: deploy/deployment/yeemathong-api-deployment.yml.template
         output: deploy/deployment/yeemathong-api-deployment.yml
 
-    - name: Enroll Deployment
+    - name: Replace Deployment configuration files (Queue)
+      uses: danielr1996/envsubst-action@1.0.0
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong-queue
+        IMAGE_TAG: ${{ github.sha }}
+      with:
+        input: deploy/deployment/yeemathong-queue-deployment.yml.template
+        output: deploy/deployment/yeemathong-queue-deployment.yml
+
+    - name: Enroll Deployment (Server)
       uses: kodermax/kubectl-aws-eks@master
       env:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
@@ -72,7 +103,16 @@ jobs:
       with:
         args: apply -f deploy/deployment/yeemathong-api-deployment.yml
 
-    - name: Wait for Deployment
+    - name: Enroll Deployment (Queue)
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: yeemathong-queue
+      with:
+        args: apply -f deploy/deployment/yeemathong-queue-deployment.yml
+
+    - name: Wait for Deployment (Server)
       uses: kodermax/kubectl-aws-eks@master
       env:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
@@ -82,7 +122,7 @@ jobs:
       with:
         args: wait deployment.v1.apps/$SERVICE_NAME --for=condition=available --timeout=300s -n yeemathong
 
-    - name: Deploy to Cluster
+    - name: Deploy to Cluster (Server)
       uses: kodermax/kubectl-aws-eks@master
       env:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
@@ -92,12 +132,19 @@ jobs:
       with:
         args: set image deployment.v1.apps/$SERVICE_NAME $ECR_REPOSITORY=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n yeemathong
 
-    - name: Setup Ingress
+    - name: Deploy to Cluster (Queue)
       uses: kodermax/kubectl-aws-eks@master
       env:
         KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: yeemathong
-        IMAGE_TAG: ${{ github.sha }}
+        ECR_REPOSITORY: yeemathong-queue
+        SERVICE_NAME: yeemathong-queue
+      with:
+        args: set image deployment.v1.apps/$SERVICE_NAME $ECR_REPOSITORY=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -n yeemathong
+
+    - name: Setup Ingress
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
       with:
         args: apply -f deploy/yeemathong-ingress.yml
