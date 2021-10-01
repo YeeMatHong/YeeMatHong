@@ -35,4 +35,4 @@ RUN bundle exec rake assets:precompile
 
 EXPOSE 8000
 
-CMD ["bundle", "exec", "rails", "s", "-b", "0.0.0.0:8000"]
+CMD ["bundle", "exec", "rails", "s", "-b", "0.0.0.0", "-p", "8000"]
