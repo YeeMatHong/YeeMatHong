@@ -17,7 +17,7 @@ WORKDIR /app
 COPY Gemfile /app/
 COPY Gemfile.lock /app/
 
-RUN apk add --no-cache build-base gcc g++ postgresql-dev cargo linux-headers libffi-dev openssl-dev git tzdata
+RUN apk add --no-cache build-base gcc g++ postgresql-dev cargo linux-headers libffi-dev openssl-dev git tzdata libsodium-dev
 RUN apk add --update nodejs npm
 
 # Gemfile.lock requirement
