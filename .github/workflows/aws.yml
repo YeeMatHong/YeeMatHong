@@ -8,6 +8,7 @@ on:
 env:
   DATABASE_URL: '${{ secrets.DATABASE_URL }}'
   REDIS_URL: '${{ secrets.REDIS_URL }}'
+  SECRET_KEY_BASE: '${{ secrets.SECRET_KEY_BASE }}'
 
 jobs:
   deploy:
@@ -40,7 +41,7 @@ jobs:
         # Build a docker container and
         # push it to ECR so that it can
         # be deployed to ECS.
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --build-arg DATABASE_URL --build-arg REDIS_URL .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG --build-arg DATABASE_URL --build-arg REDIS_URL --build-arg SECRET_KEY_BASE .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
